@@ -27,9 +27,9 @@ extern "C" {
 class AVTranscode {
 public:
     static std::shared_ptr<AVTranscode> create();
-    virtual ~AVTranscode(){}
+    virtual ~AVTranscode()= default;
     virtual int Init(int src_codec_id, const char* src_codec_name,
-            int dst_codec_id, const char* dst_codec_name, int dst_w, int dst_h, int dst_fps, int dst_bps);
+            int dst_codec_id, const char* dst_codec_name, int dst_w, int dst_h, int dst_fps, int dst_bps)=0;
 
     virtual int InputFrame(AVPacket *input_pkt) = 0;
     virtual AVPacket* GetOutputPacket() = 0;

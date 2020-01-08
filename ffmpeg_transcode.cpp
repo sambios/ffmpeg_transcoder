@@ -10,6 +10,7 @@ class FfmpegTranscode:public AVTranscode
     AVCodecContext *enc_ctx_{nullptr};
     AVCodecContext *dec_ctx_{nullptr};
     std::list<AVFrame*> frame_cache_;
+    std::list<AVPacket*> pkt_cache_;
 
     AVCodec* get_perfer_encoder_codec(AVCodecID codec_id, const char *codec_name);
     AVCodec* get_perfer_decoder_codec(AVCodecID codec_id, const char *codec_name);
@@ -93,6 +94,11 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
         return -1;
     }
 
+    enc_ctx_->width = dst_w;
+    enc_ctx_->height = dst_h;
+    enc_ctx_->bit_rate = dst_bps;
+    enc_ctx_->framerate = AVRational{dst_fps, 1};
+
     // Other parameters
 
     return 0;
@@ -102,6 +108,7 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
 int FfmpegTranscode::InputFrame(AVPacket *input_pkt)
 {
     int ret = 0;
+    // Decode first of all.
     ret = avcodec_send_packet(dec_ctx_, input_pkt);
     if (ret < 0){
         std::cout << "avcodec_send_packet() err=" << ret << std::endl;
@@ -111,21 +118,53 @@ int FfmpegTranscode::InputFrame(AVPacket *input_pkt)
     while (1) {
         AVFrame *frame = av_frame_alloc();
         ret = avcodec_receive_frame(dec_ctx_, frame);
-        if (AVERROR_AGAIN == ret) {
+        if (AVERROR(EAGAIN) == ret) {
+            av_frame_free(&frame);
             break;
+        }
+
+        frame_cache_.push_back(frame);
+    }
+
+    // Encode frame
+    if (frame_cache_.size() > 0) {
+        auto frame = frame_cache_.front();
+        ret = avcodec_send_frame(enc_ctx_, frame);
+        if (ret < 0){
+            std::cout << "avcodec_send_frame() err=" << ret << std::endl;
+            return -1;
+        }
+
+        while(1) {
+            AVPacket *out_pkt = av_packet_alloc();
+            ret = avcodec_receive_packet(enc_ctx_, out_pkt);
+            if (ret != 0) {
+                av_packet_free(&out_pkt);
+                break;
+            }
+
+            pkt_cache_.push_back(out_pkt);
         }
     }
 
+    return 0;
 }
 
 AVPacket* FfmpegTranscode::GetOutputPacket()
 {
+    if (pkt_cache_.size() == 0) {
+        return nullptr;
+    }
 
+    auto pkt = pkt_cache_.front();
+    pkt_cache_.pop_front();
+    return pkt;
 }
 
 std::shared_ptr<AVTranscode> AVTranscode::create()
 {
-    return nullptr;
+    std::shared_ptr<AVTranscode> ptr = std::make_shared<FfmpegTranscode>();
+    return ptr;
 }
 
 
