@@ -4,7 +4,12 @@
 int main(int argc, char *argv[]) {
 
     AVFormatContext	*pFormatCtx;
-    char filepath[] = "/Users/hsyuan/testfiles/";
+    char filepath[] = "/Users/hsyuan/testfiles/yanxi-1080p.264";
+    char out_file[] = "cif_output.264";
+    FILE *fp = fopen(out_file, "wb+");
+
+    std::shared_ptr<AVTranscode> trandcoder = AVTranscode::create();
+    trandcoder->Init(AV_CODEC_ID_H264, NULL, AV_CODEC_ID_H264, NULL, 352, 288, 30, 32<<10);
 
     pFormatCtx = avformat_alloc_context();
 
@@ -27,13 +32,19 @@ int main(int argc, char *argv[]) {
 
         if(packet->stream_index == 0) {
 
+            trandcoder->InputFrame(packet);
+            AVPacket *cif_h264_pkt = trandcoder->GetOutputPacket();
+            if (cif_h264_pkt) {
+                fwrite(cif_h264_pkt->data,  1, cif_h264_pkt->size, fp);
+                av_packet_free(&cif_h264_pkt);
+            }
 
         }
 
         av_packet_unref(packet);
     }
 
-    printf("\n");
+    fclose(fp);
 
     av_freep(&packet);
     avformat_close_input(&pFormatCtx);

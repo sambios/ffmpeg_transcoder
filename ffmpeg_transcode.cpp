@@ -88,16 +88,34 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
 
     // initialize output context
     codec = get_perfer_encoder_codec((AVCodecID)dst_codec_id, dst_codec_name);
+
     enc_ctx_ = avcodec_alloc_context3(codec);
+
+    enc_ctx_->codec_id = (AVCodecID)dst_codec_id;
+    enc_ctx_->codec_type = AVMEDIA_TYPE_VIDEO;
+    enc_ctx_->pix_fmt = AV_PIX_FMT_YUV420P;
+    enc_ctx_->width = 1920;
+    enc_ctx_->height = 1080;
+    enc_ctx_->bit_rate = dst_bps;
+    enc_ctx_->gop_size = 250;
+
+    enc_ctx_->time_base.num = 1;
+    enc_ctx_->time_base.den = dst_fps;
+
+    //H264
+    //enc_ctx_->me_range = 16;
+    //enc_ctx_->max_qdiff = 4;
+    //enc_ctx_->qcompress = 0.6;
+
+    enc_ctx_->qmin = 10;
+    enc_ctx_->qmax = 51;
+
     if (avcodec_open2(enc_ctx_, codec, NULL) < 0) {
         std::cout << "Can't open encoder" << std::endl;
         return -1;
     }
 
-    enc_ctx_->width = dst_w;
-    enc_ctx_->height = dst_h;
-    enc_ctx_->bit_rate = dst_bps;
-    enc_ctx_->framerate = AVRational{dst_fps, 1};
+
 
     // Other parameters
 
@@ -134,6 +152,7 @@ int FfmpegTranscode::InputFrame(AVPacket *input_pkt)
             std::cout << "avcodec_send_frame() err=" << ret << std::endl;
             return -1;
         }
+        frame_cache_.pop_front();
 
         while(1) {
             AVPacket *out_pkt = av_packet_alloc();
