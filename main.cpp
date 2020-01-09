@@ -1,20 +1,21 @@
 #include <iostream>
 #include "ffmpeg_transcode.h"
+#include <thread>
 
-int main(int argc, char *argv[]) {
+static int transcode_one(const std::string& input, int w, int h, int fps, int bps, int index)
+{
+    char out_file[255];
+    sprintf(out_file, "cif_output_%d.264", index);
+    //FILE *fp = fopen(out_file, "wb+");
 
     AVFormatContext	*pFormatCtx;
-    char filepath[] = "/Users/hsyuan/testfiles/yanxi-1080p.264";
-    char out_file[] = "cif_output.264";
-    FILE *fp = fopen(out_file, "wb+");
-
     std::shared_ptr<AVTranscode> trandcoder = AVTranscode::create();
-    trandcoder->Init(AV_CODEC_ID_H264, NULL, AV_CODEC_ID_H264, NULL, 352, 288, 30, 32<<10);
+    trandcoder->Init(AV_CODEC_ID_H264, NULL, AV_CODEC_ID_H264, NULL, w, h, fps, bps);
 
     pFormatCtx = avformat_alloc_context();
 
-    if(avformat_open_input(&pFormatCtx, filepath, NULL, NULL)!=0){
-        printf("Couldn't open input stream, file=%s\n", filepath);
+    if(avformat_open_input(&pFormatCtx, input.c_str(), NULL, NULL)!=0){
+        printf("Couldn't open input stream, file=%s\n", input.c_str());
         return -1;
     }
 
@@ -35,7 +36,7 @@ int main(int argc, char *argv[]) {
             trandcoder->InputFrame(packet);
             AVPacket *cif_h264_pkt = trandcoder->GetOutputPacket();
             if (cif_h264_pkt) {
-                fwrite(cif_h264_pkt->data,  1, cif_h264_pkt->size, fp);
+                //fwrite(cif_h264_pkt->data,  1, cif_h264_pkt->size, fp);
                 av_packet_free(&cif_h264_pkt);
             }
 
@@ -44,10 +45,31 @@ int main(int argc, char *argv[]) {
         av_packet_unref(packet);
     }
 
-    fclose(fp);
+    //fclose(fp);
 
     av_freep(&packet);
     avformat_close_input(&pFormatCtx);
+    return 0;
+}
+
+
+int main(int argc, char *argv[]) {
+
+
+    //char filepath[] = "/Users/hsyuan/testfiles/yanxi-1920x1080-4M-15.264";
+    char filepath[] = "rtsp://admin:hk123456@192.168.1.100";
+    std::thread *threads[10];
+
+    for(int i = 0;i < 10; i++) {
+        threads[i] = new std::thread([&] {
+            transcode_one(filepath, 352, 288, 25, 32<<10, i);
+        });
+    }
+
+    for(int i = 0;i < 10; i++) {
+        threads[i]->join();
+        delete threads[i];
+    }
 
     return 0;
 }

@@ -12,4 +12,4 @@ link_directories(${ffmpeg_link_dirs})
 add_executable(ffmpeg_transcoder
         ffmpeg_transcode.cpp
         main.cpp)
-target_link_libraries(ffmpeg_transcoder avcodec avformat avutil swscale)
+target_link_libraries(ffmpeg_transcoder avcodec avformat avutil avfilter swscale)
