@@ -15,7 +15,7 @@ extern "C" {
 #include "libavutil/avutil.h"
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
-};
+}
 
 #endif //__cplusplus
 

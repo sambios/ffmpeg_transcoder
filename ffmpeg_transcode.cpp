@@ -5,6 +5,9 @@
 #include "ffmpeg_transcode.h"
 #include <list>
 
+
+
+
 class FfmpegTranscode:public AVTranscode
 {
     AVCodecContext *enc_ctx_{nullptr};
@@ -17,7 +20,7 @@ class FfmpegTranscode:public AVTranscode
     AVFilterGraph *filterGraph_{nullptr};
     AVFilterContext *filterContextSrc_{nullptr};
     AVFilterContext *filterContextSink_{nullptr};
-
+    static AVBufferRef*  hw_device_ctx_;
 
     int dst_width_, dst_height_, dst_fps_, dst_bps_;
     AVCodecID dst_codecid_;
@@ -29,7 +32,8 @@ class FfmpegTranscode:public AVTranscode
 
     AVCodec* get_prefer_encoder_codec(AVCodecID codec_id, const char *codec_name);
     AVCodec* get_prefer_decoder_codec(AVCodecID codec_id, const char *codec_name);
-
+    static enum AVPixelFormat get_bmcodec_format(AVCodecContext *ctx,
+                                          const enum AVPixelFormat *pix_fmts);
 public:
     FfmpegTranscode();
     ~FfmpegTranscode();
@@ -41,16 +45,14 @@ public:
     AVPacket* GetOutputPacket() override;
 };
 
+AVBufferRef* FfmpegTranscode::hw_device_ctx_=nullptr;
 
 FfmpegTranscode::FfmpegTranscode() {
     av_register_all();
-    avformat_network_init();
-
 }
 
 FfmpegTranscode::~FfmpegTranscode() {
     std::cout << "FfmpegTranscode() dtor..." << std::endl;
-    avformat_network_deinit();
     if (filterGraph_) {
         avfilter_graph_free(&filterGraph_);
     }
@@ -86,11 +88,57 @@ AVCodec* FfmpegTranscode::get_prefer_decoder_codec(AVCodecID codec_id, const cha
     return codec;
 }
 
+enum AVPixelFormat FfmpegTranscode::get_bmcodec_format(AVCodecContext *ctx,
+                                             const enum AVPixelFormat *pix_fmts)
+{
+    const enum AVPixelFormat *p;
+#if USE_BMCODEC
+    av_log(ctx, AV_LOG_TRACE, "[%s,%d] Try to get HW surface format.\n", __func__, __LINE__);
+
+    for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
+        if (*p == AV_PIX_FMT_BMCODEC) {
+            AVHWFramesContext  *frames_ctx;
+            int ret;
+
+            /* create a pool of surfaces to be used by the decoder */
+            ctx->hw_frames_ctx = av_hwframe_ctx_alloc(hw_device_ctx_);
+            if (!ctx->hw_frames_ctx)
+                return AV_PIX_FMT_NONE;
+            frames_ctx   = (AVHWFramesContext*)ctx->hw_frames_ctx->data;
+
+            frames_ctx->format            = AV_PIX_FMT_BMCODEC;
+            frames_ctx->sw_format         = ctx->sw_pix_fmt;
+            frames_ctx->width             = FFALIGN(ctx->coded_width,  32);
+            frames_ctx->height            = FFALIGN(ctx->coded_height, 32);
+            frames_ctx->initial_pool_size = 0; // Don't prealloc pool.
+
+            ret = av_hwframe_ctx_init(ctx->hw_frames_ctx);
+            if (ret < 0)
+                goto failed;
+
+            av_log(ctx, AV_LOG_TRACE, "[%s,%d] Got HW surface format:%s.\n",
+                   __func__, __LINE__, av_get_pix_fmt_name(AV_PIX_FMT_BMCODEC));
+
+            return AV_PIX_FMT_BMCODEC;
+        }
+    }
+
+    failed:
+    av_log(ctx, AV_LOG_ERROR, "Unable to decode this file using BMCODEC.\n");
+#endif
+    return AV_PIX_FMT_NONE;
+}
 
 int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
          int dst_codec_id, const char* dst_codec_name, int dst_w, int dst_h, int dst_fps, int dst_bps)
 {
-
+    int ret;
+#if USE_BMCODEC
+    ret = av_hwdevice_ctx_create(&hw_device_ctx_, AV_HWDEVICE_TYPE_BMCODEC, "0", NULL, 0);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Failed to create a BMCODEC device. Error code: %s\n", av_err2str(ret));
+    }
+#endif
     dst_height_ = dst_h;
     dst_width_ = dst_w;
     dst_fps_ = dst_fps;
@@ -108,14 +156,21 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
     }
 
     dec_ctx_ = avcodec_alloc_context3(codec);
+    if (hw_device_ctx_) {
+        dec_ctx_->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
+        dec_ctx_->get_format = get_bmcodec_format;
+    }
 
+
+    AVDictionary *opts = NULL;
+    av_dict_set(&opts, "sophon_idx", "0", 0);
     if (avcodec_open2(dec_ctx_, codec, NULL) < 0) {
+        av_dict_free(&opts);
         std::cout << "Can't open decoder" << std::endl;
         return -1;
     }
 
-
-
+    av_dict_free(&opts);
     // Other parameters
 
     return 0;
@@ -129,7 +184,7 @@ int FfmpegTranscode::init_filter(int width, int height, int pix_fmt, int fps, co
     AVBufferSinkParams *params = NULL;
     const AVFilter *filterSrc = NULL, *filterSink = NULL;
     AVFilterInOut *filterInOutIn = NULL, *filterInOutOut = NULL;
-    enum AVPixelFormat pix_fmts[] = {AV_PIX_FMT_YUYV422, AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_NONE};
+    enum AVPixelFormat pix_fmts[] = {AV_PIX_FMT_YUYV422, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE};
     // Create video filter graph
     filterGraph_ = avfilter_graph_alloc();
     if (!filterGraph_) {
@@ -184,13 +239,22 @@ int FfmpegTranscode::init_filter(int width, int height, int pix_fmt, int fps, co
         goto cleanup;
     }
 
+    if (hw_device_ctx_) {
+        for (int i = 0; i < filterGraph_->nb_filters; i++) {
+            filterGraph_->filters[i]->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
+            if (!filterGraph_->filters[i]->hw_device_ctx) {
+                av_log(NULL, AV_LOG_ERROR, "av_buffer_ref failed\n");
+                assert(0);
+            }
+        }
+    }
+
     if (avfilter_graph_config(filterGraph_, NULL) < 0) {
         std::cout << "Cannot config filter graph";
         goto cleanup;
     }
 
     return 0;
-
     cleanup:
     if (filterGraph_) {
         avfilter_graph_free(&filterGraph_);
@@ -204,6 +268,9 @@ int FfmpegTranscode::create_encoder_from_avframe(const AVFrame *frame)
 {
     AVCodec *codec = nullptr;
     dst_pixfmt_ = (AVPixelFormat)frame->format;
+    if(AV_PIX_FMT_YUVJ420P == dst_pixfmt_) {
+        dst_pixfmt_ = AV_PIX_FMT_YUV420P;
+    }
     // initialize output context
     codec = get_prefer_encoder_codec((AVCodecID)dst_codecid_, dst_codec_name_.c_str());
 
@@ -219,6 +286,10 @@ int FfmpegTranscode::create_encoder_from_avframe(const AVFrame *frame)
 
     enc_ctx_->time_base.num = 1;
     enc_ctx_->time_base.den = dst_fps_;
+
+    if (dec_ctx_->hw_device_ctx) {
+        enc_ctx_->hw_frames_ctx = av_buffer_ref(dec_ctx_->hw_frames_ctx);
+    }
 
     //H264
     //enc_ctx_->me_range = 16;
@@ -260,7 +331,11 @@ int FfmpegTranscode::InputFrame(AVPacket *input_pkt)
                 // Change resolution, must be resize
                 char filter_desc[256];
                 sprintf(filter_desc, "scale=%d:%d", dst_width_, dst_height_);
-                init_filter(frame1->width, frame1->height, frame1->format, 25, filter_desc);
+                int pixfmt = frame1->format;
+                if (pixfmt == AV_PIX_FMT_YUV420P) {
+                    pixfmt = AV_PIX_FMT_YUV420P;
+                }
+                init_filter(frame1->width, frame1->height, pixfmt, 25, filter_desc);
             }
         }
 

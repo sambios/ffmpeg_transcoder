@@ -14,7 +14,9 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
 
     pFormatCtx = avformat_alloc_context();
 
-    if(avformat_open_input(&pFormatCtx, input.c_str(), NULL, NULL)!=0){
+    AVDictionary *opts = nullptr;
+    av_dict_set(&opts, "rtsp_transport", "tcp", 0);
+    if(avformat_open_input(&pFormatCtx, input.c_str(), NULL, &opts)!=0){
         printf("Couldn't open input stream, file=%s\n", input.c_str());
         return -1;
     }
@@ -52,21 +54,22 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
     return 0;
 }
 
+#define N 1
 
 int main(int argc, char *argv[]) {
 
 
     //char filepath[] = "/Users/hsyuan/testfiles/yanxi-1920x1080-4M-15.264";
     char filepath[] = "rtsp://admin:hk123456@192.168.1.100";
-    std::thread *threads[10];
+    std::thread *threads[N];
 
-    for(int i = 0;i < 10; i++) {
+    for(int i = 0;i < N; i++) {
         threads[i] = new std::thread([&] {
             transcode_one(filepath, 352, 288, 25, 32<<10, i);
         });
     }
 
-    for(int i = 0;i < 10; i++) {
+    for(int i = 0;i < N; i++) {
         threads[i]->join();
         delete threads[i];
     }
