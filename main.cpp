@@ -10,7 +10,7 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
 
     AVFormatContext	*pFormatCtx;
     std::shared_ptr<AVTranscode> trandcoder = AVTranscode::create();
-    trandcoder->Init(AV_CODEC_ID_H264, NULL, AV_CODEC_ID_H264, NULL, w, h, fps, bps);
+    trandcoder->Init(AV_CODEC_ID_H264, "h264_qsv", AV_CODEC_ID_H264, "h264_qsv", w, h, fps, bps);
 
     pFormatCtx = avformat_alloc_context();
 
@@ -39,6 +39,7 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
             AVPacket *cif_h264_pkt = trandcoder->GetOutputPacket();
             if (cif_h264_pkt) {
                 //fwrite(cif_h264_pkt->data,  1, cif_h264_pkt->size, fp);
+                std::cout << "encoded frame " <<  index << std::endl;
                 av_packet_free(&cif_h264_pkt);
             }
 

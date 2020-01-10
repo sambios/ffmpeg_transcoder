@@ -1,10 +1,19 @@
 cmake_minimum_required(VERSION 3.13)
 project(ffmpeg_transcoder)
 
+option(USE_BMCODEC "Use bitmain hardware codec" ON)
+
 set(CMAKE_CXX_STANDARD 14)
 
-set(ffmpeg_inc_dirs /usr/local/include)
-set(ffmpeg_link_dirs /usr/local/lib)
+if (USE_BMCODEC)
+    set(FFMPEG_ROOT $ENV{HOME}/bm_ffmpeg_sdk)
+    add_definitions(-DUSE_BMCODEC=1)
+else()
+    set(FFMPEG_ROOT $ENV{HOME}/ffmpeg-4.2.1)
+endif()
+
+set(ffmpeg_inc_dirs ${FFMPEG_ROOT}/include)
+set(ffmpeg_link_dirs ${FFMPEG_ROOT}/lib)
 
 include_directories(${ffmpeg_inc_dirs})
 link_directories(${ffmpeg_link_dirs})
@@ -12,4 +21,4 @@ link_directories(${ffmpeg_link_dirs})
 add_executable(ffmpeg_transcoder
         ffmpeg_transcode.cpp
         main.cpp)
-target_link_libraries(ffmpeg_transcoder avcodec avformat avutil avfilter swscale)
+target_link_libraries(ffmpeg_transcoder avcodec avformat avutil avfilter swscale pthread)

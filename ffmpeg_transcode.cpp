@@ -4,6 +4,8 @@
 
 #include "ffmpeg_transcode.h"
 #include <list>
+#include <assert.h>
+
 
 
 
@@ -161,6 +163,8 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
         dec_ctx_->get_format = get_bmcodec_format;
     }
 
+    dec_ctx_->width = 1920;
+    dec_ctx_->height = 1080;
 
     AVDictionary *opts = NULL;
     av_dict_set(&opts, "sophon_idx", "0", 0);
@@ -180,30 +184,36 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
 int FfmpegTranscode::init_filter(int width, int height, int pix_fmt, int fps, const std::string &filter_string)
 {
     char args[512];
-
+    int ret;
     AVBufferSinkParams *params = NULL;
+    AVBufferSrcParameters par={0};
+
     const AVFilter *filterSrc = NULL, *filterSink = NULL;
     AVFilterInOut *filterInOutIn = NULL, *filterInOutOut = NULL;
-    enum AVPixelFormat pix_fmts[] = {AV_PIX_FMT_YUYV422, AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE};
+#if USE_BMCODEC
+    enum AVPixelFormat pix_fmts[] = {AV_PIX_FMT_YUYV422, AV_PIX_FMT_YUV420P,AV_PIX_FMT_NV12, AV_PIX_FMT_BMCODEC, AV_PIX_FMT_NONE};
+#else
+    enum AVPixelFormat pix_fmts[] = {AV_PIX_FMT_YUYV422, AV_PIX_FMT_YUV420P,AV_PIX_FMT_NV12, AV_PIX_FMT_NONE};
+#endif
     // Create video filter graph
     filterGraph_ = avfilter_graph_alloc();
     if (!filterGraph_) {
         std::cout << "Cannot alloc filter graph";
-        goto cleanup;
+        goto End;
     }
 
     filterSrc = avfilter_get_by_name("buffer");
     filterSink = avfilter_get_by_name("buffersink");
     if (!filterSrc || !filterSink) {
         std::cout << "Cannot get filter";
-        goto cleanup;
+        goto End;
     }
 
     filterInOutIn = avfilter_inout_alloc();
     filterInOutOut = avfilter_inout_alloc();
     if (!filterInOutIn || !filterInOutOut) {
         std::cout << "Cannot alloc filter inout";
-        goto cleanup;
+        goto End;
     }
 
     snprintf(args, sizeof(args),
@@ -217,8 +227,19 @@ int FfmpegTranscode::init_filter(int width, int height, int pix_fmt, int fps, co
         || (avfilter_graph_create_filter(&filterContextSink_, filterSink, "out", NULL, params, filterGraph_) < 0)) {
         std::cout << "Cannot create filter";
         av_free(params);
-        goto cleanup;
+        goto End;
     }
+
+#if USE_BMCODEC
+    par.format = AV_PIX_FMT_NONE;
+    par.hw_frames_ctx = dec_ctx_->hw_frames_ctx;
+    ret = av_buffersrc_parameters_set(filterContextSrc_, &par);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "av_buffersrc_parameters_set failed\n");
+        goto End;
+    }
+#endif
+
     av_opt_set_int_list(filterContextSink_, "pix_fmts", pix_fmts,
                         AV_PIX_FMT_NONE, AV_OPT_SEARCH_CHILDREN);
 
@@ -236,7 +257,17 @@ int FfmpegTranscode::init_filter(int width, int height, int pix_fmt, int fps, co
     if (avfilter_graph_parse(filterGraph_, filter_string.c_str(),
                              filterInOutIn, filterInOutOut, NULL) < 0) {
         std::cout << "Cannot parse filter graph";
-        goto cleanup;
+        goto End;
+    }
+
+    if (hw_device_ctx_) {
+        for (int i = 0; i < filterGraph_->nb_filters; i++) {
+            filterGraph_->filters[i]->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
+            if (!filterGraph_->filters[i]->hw_device_ctx) {
+                av_log(NULL, AV_LOG_ERROR, "av_buffer_ref failed\n");
+                goto End;
+            }
+        }
     }
 
     if (hw_device_ctx_) {
@@ -251,11 +282,11 @@ int FfmpegTranscode::init_filter(int width, int height, int pix_fmt, int fps, co
 
     if (avfilter_graph_config(filterGraph_, NULL) < 0) {
         std::cout << "Cannot config filter graph";
-        goto cleanup;
+        goto End;
     }
 
     return 0;
-    cleanup:
+    End:
     if (filterGraph_) {
         avfilter_graph_free(&filterGraph_);
         filterGraph_ = NULL;
