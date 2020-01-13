@@ -7,9 +7,11 @@ int quit_flag = 0;
 
 static int transcode_one(const std::string& input, int w, int h, int fps, int bps, int index)
 {
+#if USE_OUTPUT_FILE
     char out_file[255];
     sprintf(out_file, "cif_output_%d.264", index);
-    //FILE *fp = fopen(out_file, "wb+");
+    FILE *fp = fopen(out_file, "wb+");
+#endif
 
     AVFormatContext	*pFormatCtx;
     std::shared_ptr<BMAVTranscode> trandcoder;
@@ -42,7 +44,9 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
             trandcoder->InputFrame(packet);
             AVPacket *cif_h264_pkt = trandcoder->GetOutputPacket();
             if (cif_h264_pkt) {
-                //fwrite(cif_h264_pkt->data,  1, cif_h264_pkt->size, fp);
+#if USE_OUTPUT_FILE
+                fwrite(cif_h264_pkt->data,  1, cif_h264_pkt->size, fp);
+#endif
                 printf("\b\b\b\b\b\b\b\b\b\b\b\b[%2d]%8d", index, frame_cnt);
                 av_packet_free(&cif_h264_pkt);
             }
@@ -52,15 +56,14 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
         av_packet_unref(packet);
     }
 
-    //fclose(fp);
+#if USE_OUTPUT_FILE
+    fclose(fp);
+#endif
 
     av_freep(&packet);
     avformat_close_input(&pFormatCtx);
     return 0;
 }
-
-#define N 1
-
 
 void sighander(int sig)
 {
@@ -83,8 +86,9 @@ int main(int argc, char *argv[]) {
     std::thread **threads=new std::thread*[run_N];
 
     for(int i = 0;i < run_N; i++) {
-        threads[i] = new std::thread([&] {
-            transcode_one(filepath, 352, 288, 25, 32<<10, i);
+        int n = i;
+        threads[i] = new std::thread([=] {
+            transcode_one(filepath, 352, 288, 25, 32<<10, n);
         });
     }
 
