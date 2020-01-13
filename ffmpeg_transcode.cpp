@@ -6,11 +6,7 @@
 #include <list>
 #include <assert.h>
 
-
-
-
-
-class FfmpegTranscode:public AVTranscode
+class FfmpegTranscode:public BMAVTranscode
 {
     AVCodecContext *enc_ctx_{nullptr};
     AVCodecContext *dec_ctx_{nullptr};
@@ -28,6 +24,7 @@ class FfmpegTranscode:public AVTranscode
     AVCodecID dst_codecid_;
     std::string dst_codec_name_;
     AVPixelFormat dst_pixfmt_;
+    std::string devname_;
 
     int init_filter(int w, int h, int pix_fmt, int fps, const std::string &filter_string);
     int create_encoder_from_avframe(const AVFrame* frameinfo);
@@ -37,7 +34,7 @@ class FfmpegTranscode:public AVTranscode
     static enum AVPixelFormat get_bmcodec_format(AVCodecContext *ctx,
                                           const enum AVPixelFormat *pix_fmts);
 public:
-    FfmpegTranscode();
+    FfmpegTranscode(const char* dev_name);
     ~FfmpegTranscode();
     int Init(int src_codec_id, const char* src_codec_name,
                      int dst_codec_id, const char* dst_codec_name,
@@ -49,15 +46,28 @@ public:
 
 AVBufferRef* FfmpegTranscode::hw_device_ctx_=nullptr;
 
-FfmpegTranscode::FfmpegTranscode() {
+FfmpegTranscode::FfmpegTranscode(const char* dev_name) {
     av_register_all();
+    devname_ = dev_name;
 }
 
 FfmpegTranscode::~FfmpegTranscode() {
     std::cout << "FfmpegTranscode() dtor..." << std::endl;
+    if (enc_ctx_) {
+        avcodec_close(enc_ctx_);
+        avcodec_free_context(&enc_ctx_);
+    }
+
+    if (dec_ctx_) {
+        avcodec_close(dec_ctx_);
+        avcodec_free_context(&dec_ctx_);
+    }
+
     if (filterGraph_) {
         avfilter_graph_free(&filterGraph_);
     }
+
+    BMTranscodeSingleton::Instance()->TranscodeDestroy(this);
 }
 
 AVCodec* FfmpegTranscode::get_prefer_encoder_codec(AVCodecID codec_id, const char *codec_name)
@@ -136,7 +146,7 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
 {
     int ret;
 #if USE_BMCODEC
-    ret = av_hwdevice_ctx_create(&hw_device_ctx_, AV_HWDEVICE_TYPE_BMCODEC, "0", NULL, 0);
+    ret = av_hwdevice_ctx_create(&hw_device_ctx_, AV_HWDEVICE_TYPE_BMCODEC, devname_.c_str(), NULL, 0);
     if (ret < 0) {
         av_log(NULL, AV_LOG_ERROR, "Failed to create a BMCODEC device. Error code: %s\n", av_err2str(ret));
     }
@@ -167,7 +177,7 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
     dec_ctx_->height = 1080;
 
     AVDictionary *opts = NULL;
-    av_dict_set(&opts, "sophon_idx", "0", 0);
+    av_dict_set(&opts, "sophon_idx", devname_.c_str(), 0);
     if (avcodec_open2(dec_ctx_, codec, NULL) < 0) {
         av_dict_free(&opts);
         std::cout << "Can't open decoder" << std::endl;
@@ -361,7 +371,11 @@ int FfmpegTranscode::InputFrame(AVPacket *input_pkt)
             if (filterGraph_ == nullptr) {
                 // Change resolution, must be resize
                 char filter_desc[256];
+#ifdef USE_BMCODEC
+                sprintf(filter_desc, "scale_bm=%d:%d", dst_width_, dst_height_);
+#else
                 sprintf(filter_desc, "scale=%d:%d", dst_width_, dst_height_);
+#endif
                 int pixfmt = frame1->format;
                 if (pixfmt == AV_PIX_FMT_YUV420P) {
                     pixfmt = AV_PIX_FMT_YUV420P;
@@ -422,10 +436,63 @@ AVPacket* FfmpegTranscode::GetOutputPacket()
     return pkt;
 }
 
-std::shared_ptr<AVTranscode> AVTranscode::create()
+
+
+
+BMTranscodeSingleton* BMTranscodeSingleton::_instance = NULL;
+BMTranscodeSingleton::BMTranscodeSingleton() {
+
+}
+
+BMTranscodeSingleton::~BMTranscodeSingleton() {
+
+}
+
+BMTranscodeSingleton* BMTranscodeSingleton::Instance() {
+    if (_instance == NULL) {
+        _instance = new BMTranscodeSingleton();
+    }
+
+    return _instance;
+}
+
+void BMTranscodeSingleton::Destroy() {
+    if (_instance) {
+        for(int i = 0;i <3; ++i) {
+            for(auto kv:_instance->_mapTranscodes[i]) {
+                delete kv.first;
+            }
+        }
+
+        delete _instance;
+        _instance = NULL;
+    }
+}
+
+BMAVTranscode* BMTranscodeSingleton::TranscodeCreate()
 {
-    std::shared_ptr<AVTranscode> ptr = std::make_shared<FfmpegTranscode>();
+    int min_index = 0;
+    int last_size = 0;
+    for(int i = 0;i < 3; i ++) {
+        if (_mapTranscodes[i].size() < last_size) {
+            min_index = i;
+            last_size = _mapTranscodes[i].size();
+        }
+    }
+
+    char dev_name[128];
+    sprintf(dev_name, "%d", min_index);
+    auto ptr =  new FfmpegTranscode(dev_name);
+    _mapTranscodes[min_index][ptr] = 1;
     return ptr;
+}
+
+void BMTranscodeSingleton::TranscodeDestroy(BMAVTranscode* ptr) {
+    if (ptr) {
+        for(int i = 0;i < 3; ++i) {
+            _mapTranscodes[i].erase(ptr);
+        }
+    }
 }
 
 

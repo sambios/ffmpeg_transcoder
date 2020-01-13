@@ -21,18 +21,31 @@ extern "C" {
 
 #include <iostream>
 #include <memory>
+#include <list>
+#include <unordered_map>
 
-
-
-class AVTranscode {
+class BMAVTranscode {
 public:
-    static std::shared_ptr<AVTranscode> create();
-    virtual ~AVTranscode()= default;
+    virtual ~BMAVTranscode(){}
     virtual int Init(int src_codec_id, const char* src_codec_name,
-            int dst_codec_id, const char* dst_codec_name, int dst_w, int dst_h, int dst_fps, int dst_bps)=0;
-
+                     int dst_codec_id, const char* dst_codec_name, int dst_w, int dst_h, int dst_fps, int dst_bps)=0;
     virtual int InputFrame(AVPacket *input_pkt) = 0;
     virtual AVPacket* GetOutputPacket() = 0;
+};
+
+class BMTranscodeSingleton {
+    BMTranscodeSingleton();
+    ~BMTranscodeSingleton();
+
+    std::unordered_map<BMAVTranscode*, int> _mapTranscodes[3];
+    static BMTranscodeSingleton* _instance;
+
+public:
+    static BMTranscodeSingleton* Instance();
+    static void Destroy();
+
+    BMAVTranscode* TranscodeCreate();
+    void TranscodeDestroy(BMAVTranscode* ptr);
 
 };
 

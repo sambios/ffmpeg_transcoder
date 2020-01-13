@@ -1,6 +1,9 @@
 #include <iostream>
 #include "ffmpeg_transcode.h"
 #include <thread>
+#include <signal.h>
+
+int quit_flag = 0;
 
 static int transcode_one(const std::string& input, int w, int h, int fps, int bps, int index)
 {
@@ -9,7 +12,8 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
     //FILE *fp = fopen(out_file, "wb+");
 
     AVFormatContext	*pFormatCtx;
-    std::shared_ptr<AVTranscode> trandcoder = AVTranscode::create();
+    std::shared_ptr<BMAVTranscode> trandcoder;
+    trandcoder.reset(BMTranscodeSingleton::Instance()->TranscodeCreate());
     trandcoder->Init(AV_CODEC_ID_H264, "h264_qsv", AV_CODEC_ID_H264, "h264_qsv", w, h, fps, bps);
 
     pFormatCtx = avformat_alloc_context();
@@ -28,7 +32,7 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
 
     AVPacket *packet = av_packet_alloc();
 
-    while(1) {
+    while(quit_flag != 1) {
         if (av_read_frame(pFormatCtx, packet) < 0){
             break;
         }
@@ -57,8 +61,15 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
 
 #define N 1
 
+
+void sighander(int sig)
+{
+    quit_flag = 1;
+}
+
 int main(int argc, char *argv[]) {
 
+    signal(SIGINT, sighander);
 
     //char filepath[] = "/Users/hsyuan/testfiles/yanxi-1920x1080-4M-15.264";
     char filepath[] = "rtsp://admin:hk123456@192.168.1.100";
@@ -74,6 +85,8 @@ int main(int argc, char *argv[]) {
         threads[i]->join();
         delete threads[i];
     }
+
+    BMTranscodeSingleton::Destroy();
 
     return 0;
 }
