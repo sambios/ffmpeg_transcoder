@@ -6,7 +6,7 @@ option(USE_BMCODEC "Use bitmain hardware codec" ON)
 set(CMAKE_CXX_STANDARD 14)
 
 if (USE_BMCODEC)
-    set(FFMPEG_ROOT $ENV{HOME}/bm_ffmpeg_sdk)
+    set(FFMPEG_ROOT $ENV{HOME}/yuan/bm_ffmpeg_sdk)
     add_definitions(-DUSE_BMCODEC=1)
 else()
     set(FFMPEG_ROOT $ENV{HOME}/ffmpeg-4.2.1)

@@ -23,6 +23,7 @@ extern "C" {
 #include <memory>
 #include <list>
 #include <unordered_map>
+#include <mutex>
 
 class BMAVTranscode {
 public:
@@ -36,7 +37,7 @@ public:
 class BMTranscodeSingleton {
     BMTranscodeSingleton();
     ~BMTranscodeSingleton();
-
+    std::mutex lock_trans_;
     std::unordered_map<BMAVTranscode*, int> _mapTranscodes[3];
     static BMTranscodeSingleton* _instance;
 

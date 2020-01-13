@@ -14,7 +14,7 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
     AVFormatContext	*pFormatCtx;
     std::shared_ptr<BMAVTranscode> trandcoder;
     trandcoder.reset(BMTranscodeSingleton::Instance()->TranscodeCreate());
-    trandcoder->Init(AV_CODEC_ID_H264, "h264_qsv", AV_CODEC_ID_H264, "h264_qsv", w, h, fps, bps);
+    trandcoder->Init(AV_CODEC_ID_H264, "", AV_CODEC_ID_H264, "", w, h, fps, bps);
 
     pFormatCtx = avformat_alloc_context();
 
@@ -31,7 +31,7 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
     }
 
     AVPacket *packet = av_packet_alloc();
-
+    int frame_cnt = 0;
     while(quit_flag != 1) {
         if (av_read_frame(pFormatCtx, packet) < 0){
             break;
@@ -43,10 +43,10 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
             AVPacket *cif_h264_pkt = trandcoder->GetOutputPacket();
             if (cif_h264_pkt) {
                 //fwrite(cif_h264_pkt->data,  1, cif_h264_pkt->size, fp);
-                std::cout << "encoded frame " <<  index << std::endl;
+                printf("\b\b\b\b\b\b\b\b\b\b\b\b[%2d]%8d", index, frame_cnt);
                 av_packet_free(&cif_h264_pkt);
             }
-
+            frame_cnt++;
         }
 
         av_packet_unref(packet);
@@ -70,21 +70,29 @@ void sighander(int sig)
 int main(int argc, char *argv[]) {
 
     signal(SIGINT, sighander);
-
+    BMTranscodeSingleton::Instance();
     //char filepath[] = "/Users/hsyuan/testfiles/yanxi-1920x1080-4M-15.264";
-    char filepath[] = "rtsp://admin:hk123456@192.168.1.100";
-    std::thread *threads[N];
+    //char filepath[] = "rtsp://admin:hk123456@192.168.1.100";
+    int run_N = 1;
+    char *filepath=argv[1];
+    if (argc > 2) {
+        run_N = atoi(argv[2]);
+    }
 
-    for(int i = 0;i < N; i++) {
+    printf("run_N = %d\n", run_N);
+    std::thread **threads=new std::thread*[run_N];
+
+    for(int i = 0;i < run_N; i++) {
         threads[i] = new std::thread([&] {
             transcode_one(filepath, 352, 288, 25, 32<<10, i);
         });
     }
 
-    for(int i = 0;i < N; i++) {
+    for(int i = 0;i < run_N; i++) {
         threads[i]->join();
         delete threads[i];
     }
+    delete [] threads;
 
     BMTranscodeSingleton::Destroy();
 
