@@ -477,7 +477,6 @@ BMAVTranscode* BMTranscodeSingleton::TranscodeCreate()
     int min_index = 0;
     lock_trans_.lock();
     int last_size = _mapTranscodes[0].size();
-    printf("init last_size=%d\n", last_size);
     for(int i = 1;i < 3; i ++) {
         if (_mapTranscodes[i].size() < last_size) {
             min_index = i;
@@ -485,19 +484,20 @@ BMAVTranscode* BMTranscodeSingleton::TranscodeCreate()
         }
     }
     char dev_name[128];
-    sprintf(dev_name, "%d", 3+min_index);
+    sprintf(dev_name, "%d", min_index);
     auto ptr =  new FfmpegTranscode(dev_name);
     _mapTranscodes[min_index][ptr] = 1;
     lock_trans_.unlock();
-    printf("min_index=%d, %d\n", min_index, _mapTranscodes[min_index].size());
     return ptr;
 }
 
 void BMTranscodeSingleton::TranscodeDestroy(BMAVTranscode* ptr) {
     if (ptr) {
+        lock_trans_.lock();
         for(int i = 0;i < 3; ++i) {
             _mapTranscodes[i].erase(ptr);
         }
+        lock_trans_.unlock();
     }
 }
 

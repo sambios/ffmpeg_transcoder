@@ -2,6 +2,7 @@
 #include "ffmpeg_transcode.h"
 #include <thread>
 #include <signal.h>
+#include "otl_cmd_parser.h"
 
 int quit_flag = 0;
 
@@ -38,7 +39,7 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
         if (av_read_frame(pFormatCtx, packet) < 0){
             break;
         }
-
+        packet->pts = (1.0/30)*90*frame_cnt;
         if(packet->stream_index == 0) {
 
             trandcoder->InputFrame(packet);
@@ -72,15 +73,29 @@ void sighander(int sig)
 
 int main(int argc, char *argv[]) {
 
+    int run_N = 1;
+    CommandLineParser parser(argc, argv);
+    parser.SetFlag("inputfile", "", "Input Filepath");
+    parser.SetFlag("width", "352", "Width of Picture");
+    parser.SetFlag("height", "288", "Height of Picture");
+    parser.SetFlag("bps", "32000", "bitrate");
+    parser.SetFlag("fps", "25", "framerate");
+    parser.SetFlag("num", "1", "number of channels");
+
+    parser.ProcessFlags();
+    parser.PrintEnteredFlags();
+    std::string filepath = parser.GetFlag("inputfile");
+    int width = std::stoi(parser.GetFlag("width"));
+    int height = std::stoi(parser.GetFlag("height"));
+    run_N = std::stoi(parser.GetFlag("num"));
+    int fps = std::stoi(parser.GetFlag("fps"));
+    int bitrate = std::stoi(parser.GetFlag("bps"));
+
     signal(SIGINT, sighander);
     BMTranscodeSingleton::Instance();
     //char filepath[] = "/Users/hsyuan/testfiles/yanxi-1920x1080-4M-15.264";
     //char filepath[] = "rtsp://admin:hk123456@192.168.1.100";
-    int run_N = 1;
-    char *filepath=argv[1];
-    if (argc > 2) {
-        run_N = atoi(argv[2]);
-    }
+
 
     printf("run_N = %d\n", run_N);
     std::thread **threads=new std::thread*[run_N];
@@ -88,7 +103,7 @@ int main(int argc, char *argv[]) {
     for(int i = 0;i < run_N; i++) {
         int n = i;
         threads[i] = new std::thread([=] {
-            transcode_one(filepath, 352, 288, 25, 32<<10, n);
+            transcode_one(filepath, width, height, fps, bitrate, n);
         });
     }
 
