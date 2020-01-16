@@ -340,6 +340,7 @@ int FfmpegTranscode::create_encoder_from_avframe(const AVFrame *frame)
     
     AVDictionary *opts = NULL;
     av_dict_set(&opts, "sophon_idx", devname_.c_str(), 0);
+    av_dict_set(&opts, "gop_preset", "2", 0);
     if (avcodec_open2(enc_ctx_, codec, &opts) < 0) {
         av_dict_free(&opts);
         std::cout << "Can't open encoder" << std::endl;
@@ -443,7 +444,7 @@ AVPacket* FfmpegTranscode::GetOutputPacket()
 
 
 BMTranscodeSingleton* BMTranscodeSingleton::_instance = NULL;
-BMTranscodeSingleton::BMTranscodeSingleton() {
+BMTranscodeSingleton::BMTranscodeSingleton():devid_start_(0),dev_num_(1) {
 
 }
 
@@ -461,7 +462,7 @@ BMTranscodeSingleton* BMTranscodeSingleton::Instance() {
 
 void BMTranscodeSingleton::Destroy() {
     if (_instance) {
-        for(int i = 0;i <3; ++i) {
+        for(int i = 0;i < _instance->dev_num_; ++i) {
             for(auto kv:_instance->_mapTranscodes[i]) {
                 delete kv.first;
             }
@@ -472,19 +473,25 @@ void BMTranscodeSingleton::Destroy() {
     }
 }
 
+void BMTranscodeSingleton::SetParams(int devid_start, int dev_num)
+{
+   devid_start_ = devid_start;
+   dev_num_ = dev_num;
+}
+
 BMAVTranscode* BMTranscodeSingleton::TranscodeCreate()
 {
     int min_index = 0;
     lock_trans_.lock();
     int last_size = _mapTranscodes[0].size();
-    for(int i = 1;i < 3; i ++) {
+    for(int i = 1;i < dev_num_; i ++) {
         if (_mapTranscodes[i].size() < last_size) {
             min_index = i;
             last_size = _mapTranscodes[i].size();
         }
     }
     char dev_name[128];
-    sprintf(dev_name, "%d", min_index);
+    sprintf(dev_name, "%d", devid_start_ + min_index);
     auto ptr =  new FfmpegTranscode(dev_name);
     _mapTranscodes[min_index][ptr] = 1;
     lock_trans_.unlock();

@@ -81,6 +81,8 @@ int main(int argc, char *argv[]) {
     parser.SetFlag("bps", "32000", "bitrate");
     parser.SetFlag("fps", "25", "framerate");
     parser.SetFlag("num", "1", "number of channels");
+    parser.SetFlag("devid_start", "3", "device id start number");
+    parser.SetFlag("dev_num", "1", "device num");
 
     parser.ProcessFlags();
     parser.PrintEnteredFlags();
@@ -90,9 +92,12 @@ int main(int argc, char *argv[]) {
     run_N = std::stoi(parser.GetFlag("num"));
     int fps = std::stoi(parser.GetFlag("fps"));
     int bitrate = std::stoi(parser.GetFlag("bps"));
+    int dev_id = std::stoi(parser.GetFlag("devid_start"));
+    int dev_num = std::stoi(parser.GetFlag("dev_num"));
 
     signal(SIGINT, sighander);
-    BMTranscodeSingleton::Instance();
+    auto transcodeModule = BMTranscodeSingleton::Instance();
+    transcodeModule->SetParams(dev_id, dev_num);
     //char filepath[] = "/Users/hsyuan/testfiles/yanxi-1920x1080-4M-15.264";
     //char filepath[] = "rtsp://admin:hk123456@192.168.1.100";
 

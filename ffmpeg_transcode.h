@@ -37,14 +37,17 @@ public:
 class BMTranscodeSingleton {
     BMTranscodeSingleton();
     ~BMTranscodeSingleton();
+    int devid_start_;
+    int dev_num_;
     std::mutex lock_trans_;
-    std::unordered_map<BMAVTranscode*, int> _mapTranscodes[3];
+    std::unordered_map<BMAVTranscode*, int> _mapTranscodes[24];
     static BMTranscodeSingleton* _instance;
 
 public:
     static BMTranscodeSingleton* Instance();
     static void Destroy();
 
+    void SetParams(int devid_start, int dev_num);
     BMAVTranscode* TranscodeCreate();
     void TranscodeDestroy(BMAVTranscode* ptr);
 
