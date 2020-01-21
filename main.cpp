@@ -6,7 +6,7 @@
 
 int quit_flag = 0;
 
-static int transcode_one(const std::string& input, int w, int h, int fps, int bps, int index)
+static int transcode_one(const std::string& input, int w, int h, int fps, int bps, int max_frame, int index)
 {
 #if USE_OUTPUT_FILE
     char out_file[255];
@@ -35,28 +35,29 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
 
     AVPacket *packet = av_packet_alloc();
     int frame_cnt = 0;
+    int64_t start_time = av_gettime();
     while(quit_flag != 1) {
         if (av_read_frame(pFormatCtx, packet) < 0){
             break;
         }
         packet->pts = (1.0/30)*90*frame_cnt;
         if(packet->stream_index == 0) {
-
             trandcoder->InputFrame(packet);
             AVPacket *cif_h264_pkt = trandcoder->GetOutputPacket();
             if (cif_h264_pkt) {
 #if USE_OUTPUT_FILE
                 fwrite(cif_h264_pkt->data,  1, cif_h264_pkt->size, fp);
 #endif
-                printf("\b\b\b\b\b\b\b\b\b\b\b\b[%2d]%8d", index, frame_cnt);
+                //printf("\b\b\b\b\b\b\b\b\b\b\b\b[%2d]%8d", index, frame_cnt);
                 av_packet_free(&cif_h264_pkt);
             }
             frame_cnt++;
         }
-
         av_packet_unref(packet);
+       if (frame_cnt > max_frame) break;
     }
-
+    int64_t delta_time = av_gettime()-start_time;
+    printf("%d, fps=%f\n", (double)frame_cnt*1000000/delta_time);
 #if USE_OUTPUT_FILE
     fclose(fp);
 #endif
@@ -83,6 +84,7 @@ int main(int argc, char *argv[]) {
     parser.SetFlag("num", "1", "number of channels");
     parser.SetFlag("devid_start", "3", "device id start number");
     parser.SetFlag("dev_num", "1", "device num");
+    parser.SetFlag("max_frame", "2000", "max frame to decode");
 
     parser.ProcessFlags();
     parser.PrintEnteredFlags();
@@ -94,6 +96,7 @@ int main(int argc, char *argv[]) {
     int bitrate = std::stoi(parser.GetFlag("bps"));
     int dev_id = std::stoi(parser.GetFlag("devid_start"));
     int dev_num = std::stoi(parser.GetFlag("dev_num"));
+    int max_frame = std::stoi(parser.GetFlag("max_frame"));
 
     signal(SIGINT, sighander);
     auto transcodeModule = BMTranscodeSingleton::Instance();
@@ -108,7 +111,7 @@ int main(int argc, char *argv[]) {
     for(int i = 0;i < run_N; i++) {
         int n = i;
         threads[i] = new std::thread([=] {
-            transcode_one(filepath, width, height, fps, bitrate, n);
+            transcode_one(filepath, width, height, fps, bitrate, max_frame, n);
         });
     }
 
@@ -119,6 +122,8 @@ int main(int argc, char *argv[]) {
     delete [] threads;
 
     BMTranscodeSingleton::Destroy();
+
+    getchar();
 
     return 0;
 }

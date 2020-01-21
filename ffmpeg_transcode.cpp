@@ -335,7 +335,7 @@ int FfmpegTranscode::create_encoder_from_avframe(const AVFrame *frame)
     //enc_ctx_->max_qdiff = 4;
     //enc_ctx_->qcompress = 0.6;
 
-    enc_ctx_->qmin = 10;
+    enc_ctx_->qmin = 2;
     enc_ctx_->qmax = 51;
     
     AVDictionary *opts = NULL;

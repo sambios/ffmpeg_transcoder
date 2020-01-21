@@ -13,6 +13,7 @@ extern "C" {
 #include "libavfilter/buffersink.h"
 #include "libavfilter/buffersrc.h"
 #include "libavutil/avutil.h"
+#include "libavutil/time.h"
 #include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 }
