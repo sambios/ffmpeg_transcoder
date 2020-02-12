@@ -22,7 +22,7 @@ set(ffmpeg_link_dirs ${FFMPEG_ROOT}/lib)
 include_directories(${ffmpeg_inc_dirs})
 link_directories(${ffmpeg_link_dirs})
 
-add_executable(ffmpeg_transcoder
+add_executable(fftrans
         ffmpeg_transcode.cpp
         main.cpp)
-target_link_libraries(ffmpeg_transcoder avcodec avformat avutil avfilter swscale pthread)
+target_link_libraries(fftrans avcodec avformat avutil avfilter swscale pthread)

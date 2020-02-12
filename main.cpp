@@ -55,6 +55,7 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
         }
         av_packet_unref(packet);
        if (frame_cnt > max_frame) break;
+       av_usleep(27000);
     }
     int64_t delta_time = av_gettime()-start_time;
     printf("%d, fps=%f\n", (double)frame_cnt*1000000/delta_time);
@@ -106,20 +107,22 @@ int main(int argc, char *argv[]) {
 
 
     printf("run_N = %d\n", run_N);
-    std::thread **threads=new std::thread*[run_N];
+    for(int j = 0; j < 1; j ++) {
+	    std::thread **threads=new std::thread*[run_N];
 
-    for(int i = 0;i < run_N; i++) {
-        int n = i;
-        threads[i] = new std::thread([=] {
-            transcode_one(filepath, width, height, fps, bitrate, max_frame, n);
-        });
-    }
+	    for(int i = 0;i < run_N; i++) {
+		    int n = i;
+		    threads[i] = new std::thread([=] {
+				    transcode_one(filepath, width, height, fps, bitrate, max_frame, n);
+				    });
+	    }
 
-    for(int i = 0;i < run_N; i++) {
-        threads[i]->join();
-        delete threads[i];
+	    for(int i = 0;i < run_N; i++) {
+		    threads[i]->join();
+		    delete threads[i];
+	    }
+	    delete [] threads;
     }
-    delete [] threads;
 
     BMTranscodeSingleton::Destroy();
 

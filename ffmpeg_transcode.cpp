@@ -462,12 +462,13 @@ BMTranscodeSingleton* BMTranscodeSingleton::Instance() {
 
 void BMTranscodeSingleton::Destroy() {
     if (_instance) {
+        _instance->lock_trans_.lock();
         for(int i = 0;i < _instance->dev_num_; ++i) {
             for(auto kv:_instance->_mapTranscodes[i]) {
                 delete kv.first;
             }
         }
-
+       _instance->lock_trans_.unlock();
         delete _instance;
         _instance = NULL;
     }
