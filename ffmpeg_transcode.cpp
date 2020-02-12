@@ -175,6 +175,9 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
     dec_ctx_->height = 1080;
 
     AVDictionary *opts = NULL;
+    dec_ctx_->thread_count = 1;
+    //dec_ctx_->thread_type=FF_THREAD_FRAME;
+
     av_dict_set(&opts, "sophon_idx", devname_.c_str(), 0);
     if (avcodec_open2(dec_ctx_, codec, &opts) < 0) {
         av_dict_free(&opts);
@@ -230,7 +233,7 @@ int FfmpegTranscode::init_filter(int width, int height, int pix_fmt, int fps, co
     );
 
     std::cout << args << std::endl;
-
+   filterGraph_->thread_type=0;
     if ((avfilter_graph_create_filter(&filterContextSrc_, filterSrc, "in", args, NULL, filterGraph_) < 0)
         || (avfilter_graph_create_filter(&filterContextSink_, filterSink, "out", NULL, params, filterGraph_) < 0)) {
         std::cout << "Cannot create filter";
@@ -322,6 +325,8 @@ int FfmpegTranscode::create_encoder_from_avframe(const AVFrame *frame)
     enc_ctx_->height = frame->height;
     enc_ctx_->bit_rate = dst_bps_;
     enc_ctx_->gop_size = 250;
+    enc_ctx_->thread_count=1;
+    //enc_ctx_->thread_type=FF_THREAD_FRAME;
 
     enc_ctx_->time_base.num = 1;
     enc_ctx_->time_base.den = dst_fps_;
