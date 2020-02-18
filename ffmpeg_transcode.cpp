@@ -64,8 +64,10 @@ FfmpegTranscode::~FfmpegTranscode() {
     if (filterGraph_) {
         avfilter_graph_free(&filterGraph_);
     }
-
-    BMTranscodeSingleton::Instance()->TranscodeDestroy(this);
+    
+    if (hw_device_ctx_) {
+       av_buffer_unref(&hw_device_ctx_);
+    }
 }
 
 AVCodec* FfmpegTranscode::get_prefer_encoder_codec(AVCodecID codec_id, const char *codec_name)
@@ -175,7 +177,7 @@ int FfmpegTranscode::Init(int src_codec_id, const char* src_codec_name,
     dec_ctx_->height = 1080;
 
     AVDictionary *opts = NULL;
-    dec_ctx_->thread_count = 1;
+    //dec_ctx_->thread_count = 1;
     //dec_ctx_->thread_type=FF_THREAD_FRAME;
 
     av_dict_set(&opts, "sophon_idx", devname_.c_str(), 0);
@@ -325,7 +327,7 @@ int FfmpegTranscode::create_encoder_from_avframe(const AVFrame *frame)
     enc_ctx_->height = frame->height;
     enc_ctx_->bit_rate = dst_bps_;
     enc_ctx_->gop_size = 250;
-    enc_ctx_->thread_count=1;
+    //enc_ctx_->thread_count=1;
     //enc_ctx_->thread_type=FF_THREAD_FRAME;
 
     enc_ctx_->time_base.num = 1;
@@ -507,9 +509,10 @@ BMAVTranscode* BMTranscodeSingleton::TranscodeCreate()
 void BMTranscodeSingleton::TranscodeDestroy(BMAVTranscode* ptr) {
     if (ptr) {
         lock_trans_.lock();
-        for(int i = 0;i < 3; ++i) {
+        for(int i = 0;i < dev_num_; ++i) {
             _mapTranscodes[i].erase(ptr);
         }
+        delete ptr;
         lock_trans_.unlock();
     }
 }

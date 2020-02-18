@@ -5,8 +5,9 @@ option(USE_BMCODEC "Use bitmain hardware codec" ON)
 
 set(CMAKE_CXX_STANDARD 14)
 
+set(TOP ${CMAKE_CURRENT_SOURCE_DIR})
 if (USE_BMCODEC)
-    set(FFMPEG_ROOT $ENV{HOME}/bm_ffmpeg_sdk)
+    set(FFMPEG_ROOT ${TOP}/../bm_ffmpeg_sdk)
     add_definitions(-DUSE_BMCODEC=1)
 else()
     if (APPLE)
