@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 project(ffmpeg_transcoder)
 
-option(USE_BMCODEC "Use bitmain hardware codec" ON)
+option(USE_BMCODEC "Use bitmain hardware codec" OFF)
 
 set(CMAKE_CXX_STANDARD 14)
 
@@ -13,6 +13,7 @@ else()
     if (APPLE)
         set(FFMPEG_ROOT /usr/local)
     else()
+        # user must set FFMPEG Root directories for yourself.
         set(FFMPEG_ROOT $ENV{HOME}/third_party)
     endif()
 endif()
