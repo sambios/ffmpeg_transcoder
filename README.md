@@ -1,6 +1,8 @@
 # 转码测试程序说明
 ## 一 支持平台说明
 该程序支持多种Linux环境，目前Ubuntu 16.04 和CentOS 7.4已验证。
+没有插TPU卡的机器，使用软件转码。如需要使用硬件转码，请购买比特大陆TPU算力加速卡。
+
 ## 二 编译步骤
 - 在程序包中执行./compile.sh, 编译成功后，会编译出一个可执行程序fftrans。
 ## 三 程序参数说明
@@ -16,4 +18,5 @@
 
 ## 四 运行示例
 - 运行144路转码 ./fftrans --inputfile=../wkc.264 --devid_start=0 --dev_num=9 --num=144
+- 实现N路转码 ./fftrans --inputfile=test.264 --num=N 
 
