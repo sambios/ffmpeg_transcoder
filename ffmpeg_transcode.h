@@ -26,13 +26,17 @@ extern "C" {
 #include <unordered_map>
 #include <mutex>
 
+
 class BMAVTranscode {
 public:
     virtual ~BMAVTranscode(){}
     virtual int Init(int src_codec_id, const char* src_codec_name,
-                     int dst_codec_id, const char* dst_codec_name, int dst_w, int dst_h, int dst_fps, int dst_bps)=0;
+                     int dst_codec_id, const char* dst_codec_name,
+                     int dst_w, int dst_h, int dst_fps, int dst_bps,
+                     bool use_snaphost=false, int snapshot_width=1280, int snapshot_height=720, int seconds=60)=0;
     virtual int InputFrame(AVPacket *input_pkt) = 0;
     virtual AVPacket* GetOutputPacket() = 0;
+    virtual int SetSnapshotCallback(std::function<void(AVPacket *pkt)> cb) = 0;
 };
 
 class BMTranscodeSingleton {
