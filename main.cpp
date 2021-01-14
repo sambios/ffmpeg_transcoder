@@ -18,7 +18,7 @@ static int transcode_one(const std::string& input, int w, int h, int fps, int bp
 
     AVFormatContext	*pFormatCtx;
     auto trandcoder = BMTranscodeSingleton::Instance()->TranscodeCreate();
-    trandcoder->Init(AV_CODEC_ID_H264, "", AV_CODEC_ID_H264, "", w, h, fps, bps, use_snaphost, snapshot_w, snapshot_h, 60);
+    trandcoder->Init(AV_CODEC_ID_H264, "h264_bm", AV_CODEC_ID_H264, "h264_bm", w, h, fps, bps, use_snaphost, snapshot_w, snapshot_h, 60);
     trandcoder->SetSnapshotCallback([index](AVPacket *pkt){
         char filepath[255];
         time_t tnow;
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
     for(int i = 0;i < run_N; i++) {
 	    threads[i]->join();
 	    delete threads[i];
-            printf("%d %.0f\n", i, channel_fps[i]);
+            printf("channel[%d]= %.0f fps\n", i, channel_fps[i]);
 
     }
     delete [] threads;
