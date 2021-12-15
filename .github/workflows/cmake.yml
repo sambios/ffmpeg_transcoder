@@ -21,7 +21,9 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Download bmnnsdk2
-      run: wget https://sophon-file.sophon.cn/sophon-prod-s3/sdk/bmnnsdk_v2.5.0_release.tar.gz
+      run: wget -q https://sophon-file.sophon.cn/sophon-prod-s3/sdk/bmnnsdk_v2.5.0_release.tar.gz
+    - name: decompress bmnnsdk2
+      run: tar zxf bmnnsdk_v2.5.0_release.tar.gz && cd bmnnsdk2-bm1684_v2.5.0/scripts && ./install_libs.sh nntc && cd ../..
       
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
