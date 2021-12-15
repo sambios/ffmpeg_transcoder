@@ -20,8 +20,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Parepare deps
-      run: wget https://github.com
+    - name: Download bmnnsdk2
+      run: wget https://sophon-file.sophon.cn/sophon-prod-s3/sdk/bmnnsdk_v2.5.0_release.tar.gz
       
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
